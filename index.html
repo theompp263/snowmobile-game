@@ -104,13 +104,13 @@ function animate(){requestAnimationFrame(animate);if(!scene)return;const dt=Math
  const dx=Math.sin(heading)*speed*dt,dz=-Math.cos(heading)*speed*dt;sled.position.x+=dx;sled.position.z+=dz;
  let targetY=heightAt(sled.position.x,sled.position.z)+.6; sled.position.y+=(targetY-sled.position.y)*dt*(custom.susp==='Firm'?14:custom.susp==='Soft'?5:8);
  camera.position.lerp(new THREE.Vector3(sled.position.x-Math.sin(heading)*8,sled.position.y+4.5,sled.position.z+Math.cos(heading)*10),dt*3.5);camera.lookAt(sled.position.x,sled.position.y+1.3,sled.position.z-2);
- $('speed').textContent=Math.round(Math.abs(speed)*1.25);$('gear').textContent=speed>3?'1':speed>25?'2':speed>48?'3':speed>70?'4':speed< -1?'R':'N';engineSound();}
+ $('speed').textContent=Math.round(Math.abs(speed)*1.25);const absSpeed=Math.abs(speed);$('gear').textContent=speed< -1?'R':absSpeed<3?'N':absSpeed<25?'1':absSpeed<48?'2':absSpeed<70?'3':'4';engineSound();}
  else{camera.position.lerp(new THREE.Vector3(0,8,14),dt*2);camera.lookAt(0,1,0);}
  if(snowParticles&&settings.weather!=='Clear'){const a=snowParticles.geometry.attributes.position;for(let i=0;i<a.count;i++){a.setY(i,a.getY(i)-dt*(settings.weather==='Blizzard'?18:7));if(a.getY(i)<0)a.setY(i,80);a.setX(i,a.getX(i)+Math.sin(worldTime+i)*dt*2);}a.needsUpdate=true;}
  renderer.render(scene,camera);}
 window.addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(k==='escape'){if(running)showMenu();else setGame();}if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k))e.preventDefault();});
 window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-document.querySelectorAll('#touch button').forEach(b=>{let k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId});b.addEventListener('pointerup',e=>{keys[k]=false});b.addEventListener('pointercancel',()=>keys[k]=false);});
+document.querySelectorAll('#touch button').forEach(b=>{let k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId);});b.addEventListener('pointerup',e=>{keys[k]=false});b.addEventListener('pointercancel',()=>keys[k]=false);});
 $('ride').onclick=setGame;$('openGarage').onclick=()=>{$('menu').style.display='none';$('garage').style.display='flex';$('bodyColor').value=custom.body;$('accentColor').value=custom.accent;$('track').value=custom.track;$('susp').value=custom.susp;$('ski').value=custom.ski;};
 $('garageBack').onclick=()=>{$('garage').style.display='none';$('menu').style.display='flex';};$('applyGarage').onclick=applyGarage;
 $('openSettings').onclick=()=>{$('menu').style.display='none';$('settings').style.display='flex';$('weather').value=settings.weather;$('time').value=settings.time;$('volume').value=settings.volume;$('quality').value=settings.quality;};
