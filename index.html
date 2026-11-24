@@ -49,13 +49,13 @@ h1{margin:0;font-size:clamp(34px,8vw,58px);letter-spacing:-2px;line-height:1}h1 
 <script>
 (()=> {
 const $=id=>document.getElementById(id);
-let scene,camera,renderer,sled,bodyMat,accentMat,trackGroup,terrain,trees=[],snowParticles,clock,fallbackRoot,skiPivots=[],externalModelLoaded=false;
+let scene,camera,renderer,sled,bodyMat,accentMat,trackGroup,terrain,trees=[],snowParticles,clock,fallbackRoot,skiPivots=[],skiMaterials=[],externalModelLoaded=false;
 let running=false,paused=true,keys={},speed=0,steer=0,heading=0,lean=0,brace=0,worldTime=0,engineOsc,engineGain,audioCtx,modelChoice='cc0';
 let settings={weather:'Clear',time:'day',volume:45,quality:'Balanced'};
 let custom={body:'#168bd1',accent:'#f2f8ff',track:'short',susp:'Standard',ski:'Standard'};
-const saved=JSON.parse(localStorage.getItem('snowmobileGameSave')||'{}');
+const saved=JSON.parse(localStorage.getItem('snowmobileGameSave')||'{}');modelChoice=saved.modelChoice||modelChoice;
 Object.assign(custom,saved.custom||{});Object.assign(settings,saved.settings||{});
-function save(){localStorage.setItem('snowmobileGameSave',JSON.stringify({custom,settings}));}
+function save(){localStorage.setItem('snowmobileGameSave',JSON.stringify({custom,settings,modelChoice}));}
 function heightAt(x,z){return Math.sin(x*.022)*7+Math.cos(z*.018)*8+Math.sin((x+z)*.012)*5+Math.sin(x*.055+z*.025)*2;}
 function init(){
  scene=new THREE.Scene();scene.background=new THREE.Color(0x9fc6e2);scene.fog=new THREE.Fog(0xb5d3e7,100,850);
@@ -75,7 +75,7 @@ function createTrees(){const pineMat=new THREE.MeshStandardMaterial({color:0x1e4
  for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(60+Math.random()*70,90+Math.random()*120,6),mountainMat);m.position.set((Math.random()-.5)*900,45+Math.random()*40,-350-Math.random()*300);scene.add(m);}
 }
 function createSnow(){const count=settings.quality==='Low'?800:1600,arr=new Float32Array(count*3);for(let i=0;i<count;i++){arr[i*3]=(Math.random()-.5)*180;arr[i*3+1]=Math.random()*90;arr[i*3+2]=(Math.random()-.5)*180;}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(arr,3));snowParticles=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:.18,transparent:true,opacity:.75}));scene.add(snowParticles);}
-function box(parent,w,h,d,mat,x,y,z){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+function loadGLTFLoader(){const urls=['https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'];return urls.reduce((p,url)=>p.catch(()=>import(url)),Promise.reject()).then(m=>m.GLTFLoader);}\nfunction box(parent,w,h,d,mat,x,y,z){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 function createSled(){
  sled=new THREE.Group();fallbackRoot=new THREE.Group();
  bodyMat=new THREE.MeshStandardMaterial({color:custom.body,metalness:.18,roughness:.36});
@@ -96,8 +96,8 @@ function createSled(){
  skiPivots=[];
  for(let side of [-1,1]){let pivot=new THREE.Group();pivot.position.set(side*.5,.12,-1.05);sled.add(pivot);skiPivots.push(pivot);
  let skiWidth=custom.ski==='Wide powder skis'?.22:custom.ski==='Sport skis'?.11:.15;
- let ski=new THREE.Mesh(new THREE.BoxGeometry(skiWidth,.09,1.65),new THREE.MeshStandardMaterial({color:custom.accent,metalness:.18,roughness:.45}));ski.position.z=-.12;pivot.add(ski);
- let tip=new THREE.Mesh(new THREE.CapsuleGeometry(skiWidth*.48,.18,4,8),new THREE.MeshStandardMaterial({color:custom.accent,metalness:.18,roughness:.45}));tip.rotation.x=Math.PI/2;tip.position.set(0,.01,-.87);pivot.add(tip);
+ let skiMat=new THREE.MeshStandardMaterial({color:custom.accent,metalness:.18,roughness:.45});skiMaterials.push(skiMat);let ski=new THREE.Mesh(new THREE.BoxGeometry(skiWidth,.09,1.65),skiMat);ski.position.z=-.12;pivot.add(ski);
+ let tip=new THREE.Mesh(new THREE.CapsuleGeometry(skiWidth*.48,.18,4,8),skiMat);tip.rotation.x=Math.PI/2;tip.position.set(0,.01,-.87);pivot.add(tip);
  let strut=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.5,8),metal);strut.position.set(0,.3,-.36);pivot.add(strut);}
  sled.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(sled);sled.position.set(0,heightAt(0,0)+.6,0);
  // Load a CC0 snowmobile asset when available; retain the built-in sled if it fails.
@@ -110,9 +110,9 @@ function createSled(){
    model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
    sled.add(model);externalModelLoaded=true;applyModelChoice();
   },undefined,e=>console.warn('Snowmobile asset failed; using built-in model.',e));
- }).catch(e=>console.warn('Model loader unavailable; using built-in sled.',e));
+ }).catch(e=>console.warn('All GLTFLoader CDNs failed; using built-in sled.',e));
 }
-function rebuildColor(){bodyMat.color.set(custom.body);accentMat.color.set(custom.accent);save();}\nfunction applyModelChoice(){if(!fallbackRoot)return;fallbackRoot.visible=!externalModelLoaded||modelChoice!=='cc0';fallbackRoot.scale.set(modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1,1,modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1);if(externalModelLoaded)sled.children.filter(c=>c.userData.importedModel).forEach(c=>c.visible=modelChoice==='cc0');}
+function rebuildColor(){bodyMat.color.set(custom.body);accentMat.color.set(custom.accent);skiMaterials.forEach(m=>m.color.set(custom.accent));if(trackGroup)trackGroup.scale.z=custom.track==='long'?1.22:custom.track==='deep'?1.38:1;save();}\nfunction applyModelChoice(){if(!fallbackRoot)return;fallbackRoot.visible=!externalModelLoaded||modelChoice!=='cc0';fallbackRoot.scale.set(modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1,1,modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1);if(externalModelLoaded)sled.children.filter(c=>c.userData.importedModel).forEach(c=>c.visible=modelChoice==='cc0');}
 function startAudio(){try{if(!audioCtx){audioCtx=new (window.AudioContext||window.webkitAudioContext)();engineOsc=audioCtx.createOscillator();engineGain=audioCtx.createGain();engineOsc.type='sawtooth';engineOsc.frequency.value=45;engineGain.gain.value=0;engineOsc.connect(engineGain);engineGain.connect(audioCtx.destination);engineOsc.start();}audioCtx.resume();}catch(e){}}
 function engineSound(){if(engineOsc&&engineGain){engineOsc.frequency.setTargetAtTime(45+speed*2.2+(keys.w?40:0),audioCtx.currentTime,.08);engineGain.gain.setTargetAtTime(running?settings.volume/100*.055:0,audioCtx.currentTime,.12);}}
 function applySettings(){settings.weather=$('weather').value;settings.time=$('time').value;settings.volume=+$('volume').value;settings.quality=$('quality').value;scene.fog.density=0;scene.fog.near=settings.weather==='Blizzard'?20:100;scene.fog.far=settings.weather==='Blizzard'?180:850; snowParticles.visible=settings.weather!=='Clear';scene.background.set(settings.time==='night'?0x101a32:settings.time==='sunset'?0xe4a17a:0x9fc6e2);save();}
@@ -121,7 +121,7 @@ function setGame(){running=true;paused=false;$('menu').style.display='none';$('g
 function showMenu(){paused=true;$('menu').style.display='flex';$('hud').style.display='none';running=false;engineSound();}
 function animate(){requestAnimationFrame(animate);if(!scene)return;const dt=Math.min(clock.getDelta(),.04);worldTime+=dt;
  if(running){let accel=keys.w?24:keys.s?-28:0;speed+=accel*dt;speed*=Math.pow(keys.s&&speed>0?.92:.985,dt*60);speed=Math.max(-18,Math.min(90,speed));let targetSteer=(keys.a||keys.arrowleft||keys.steerleft?-1:0)+(keys.d||keys.arrowright||keys.steerright?1:0);steer+=(targetSteer-steer)*dt*6;heading+=steer*dt*(Math.max(0,Math.abs(speed))*.018);sled.rotation.y=heading;if(skiPivots)skiPivots.forEach(p=>p.rotation.y=steer*.58);if(trackGroup)trackGroup.rotation.x=worldTime*speed*.24;
- let leanTarget=(keys.arrowup||keys.leanleft?-1:0)+(keys.arrowdown||keys.leanright?1:0);lean+=(leanTarget-lean)*dt*4;sled.rotation.z=-steer*Math.min(.22,Math.abs(speed)*.004)-lean*.08; sled.rotation.x=(keys.q?-.08:keys.e?.08:0)+Math.sin(worldTime*speed*.05)*.015;
+ let leanTarget=(keys.leanleft?-1:0)+(keys.leanright?1:0);lean+=(leanTarget-lean)*dt*4;sled.rotation.z=-steer*Math.min(.22,Math.abs(speed)*.004)-lean*.13;let pitchTarget=(keys.arrowup?-.1:keys.arrowdown?.1:0)+(keys.q?-.08:keys.e?.08:0);sled.rotation.x+=(pitchTarget-sled.rotation.x)*dt*5;
  const dx=Math.sin(heading)*speed*dt,dz=-Math.cos(heading)*speed*dt;sled.position.x+=dx;sled.position.z+=dz;
  let targetY=heightAt(sled.position.x,sled.position.z)+.6; sled.position.y+=(targetY-sled.position.y)*dt*(custom.susp==='Firm'?14:custom.susp==='Soft'?5:8);
  camera.position.lerp(new THREE.Vector3(sled.position.x-Math.sin(heading)*8,sled.position.y+4.5,sled.position.z+Math.cos(heading)*10),dt*3.5);camera.lookAt(sled.position.x,sled.position.y+1.3,sled.position.z-2);
