@@ -75,7 +75,7 @@ function createTrees(){const pineMat=new THREE.MeshStandardMaterial({color:0x1e4
  for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(60+Math.random()*70,90+Math.random()*120,6),mountainMat);m.position.set((Math.random()-.5)*900,45+Math.random()*40,-350-Math.random()*300);scene.add(m);}
 }
 function createSnow(){const count=settings.quality==='Low'?800:1600,arr=new Float32Array(count*3);for(let i=0;i<count;i++){arr[i*3]=(Math.random()-.5)*180;arr[i*3+1]=Math.random()*90;arr[i*3+2]=(Math.random()-.5)*180;}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(arr,3));snowParticles=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:.18,transparent:true,opacity:.75}));scene.add(snowParticles);}
-function loadGLTFLoader(){const urls=['https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'];return urls.reduce((p,url)=>p.catch(()=>import(url)),Promise.reject()).then(m=>m.GLTFLoader);}
+async function loadGLTFLoader(){const url='https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';const module=await import(url);if(typeof module.GLTFLoader!=='function')throw new Error('GLTFLoader module loaded without a GLTFLoader export');return module.GLTFLoader;}
 function box(parent,w,h,d,mat,x,y,z){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 function createSled(){
  sled=new THREE.Group();fallbackRoot=new THREE.Group();
