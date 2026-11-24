@@ -16,7 +16,7 @@
 #menu,#garage,#settings{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(10,22,35,.35),rgba(7,16,26,.78));}
 .card{width:min(520px,94vw);max-height:90vh;overflow:auto;border:1px solid #ffffff38;background:rgba(12,23,34,.88);backdrop-filter:blur(12px);border-radius:20px;padding:22px;box-shadow:0 20px 80px #07101c99}
 h1{margin:0;font-size:clamp(34px,8vw,58px);letter-spacing:-2px;line-height:1}h1 span{color:#8dd9ff}
-.sub{color:#b8cbd9;margin:8px 0 20px}.btn{border:1px solid #ffffff35;background:#eaf7ff;color:#152532;padding:12px 16px;border-radius:11px;font-weight:800;font-size:15px;cursor:pointer;margin:5px 5px 5px 0}.btn.secondary{background:#253b4d;color:#fff}.btn:hover{filter:brightness(1.08)}
+.sub{color:#b8cbd9;margin:8px 0 20px}.btn{border:1px solid #ffffff35;background:#eaf7ff;color:#152532;padding:12px 16px;border-radius:11px;font-weight:800;font-size:15px;cursor:pointer;margin:5px 5px 5px 0}.btn.secondary{background:#253b4d;color:#fff}.btn:hover{filter:brightness(1.08)}.btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;position:relative;z-index:2;pointer-events:auto}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}.row label{font-size:14px;color:#d7e5ee}.row input[type=range]{width:48%}.row select,.row input[type=color]{background:#213546;color:#fff;border:1px solid #456;border-radius:7px;padding:7px}
 #garage,#settings{display:none}.garageTitle{font-size:26px;font-weight:800}.small{font-size:12px;color:#b6c8d5}
 #touch{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}#touch button{pointer-events:auto;position:absolute;border:1px solid #ffffff55;background:#10253588;color:#fff;font-weight:800;border-radius:16px;width:66px;height:62px;font-size:18px;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -53,9 +53,9 @@ let scene,camera,renderer,sled,bodyMat,accentMat,trackGroup,terrain,trees=[],sno
 let running=false,paused=true,keys={},speed=0,steer=0,heading=0,lean=0,brace=0,worldTime=0,engineOsc,engineGain,audioCtx,modelChoice='cc0';
 let settings={weather:'Clear',time:'day',volume:45,quality:'Balanced'};
 let custom={body:'#168bd1',accent:'#f2f8ff',track:'short',susp:'Standard',ski:'Standard'};
-const saved=JSON.parse(localStorage.getItem('snowmobileGameSave')||'{}');modelChoice=saved.modelChoice||modelChoice;
+const saved=(()=>{try{return JSON.parse(localStorage.getItem('snowmobileGameSave')||'{}')||{};}catch(e){console.warn('Saved settings unavailable; using defaults.',e);return {};}})();modelChoice=saved.modelChoice||modelChoice;
 Object.assign(custom,saved.custom||{});Object.assign(settings,saved.settings||{});
-function save(){localStorage.setItem('snowmobileGameSave',JSON.stringify({custom,settings,modelChoice}));}
+function save(){try{localStorage.setItem('snowmobileGameSave',JSON.stringify({custom,settings,modelChoice}));}catch(e){console.warn('Could not save settings on this device.',e);}}
 function heightAt(x,z){return Math.sin(x*.022)*7+Math.cos(z*.018)*8+Math.sin((x+z)*.012)*5+Math.sin(x*.055+z*.025)*2;}
 function init(){
  scene=new THREE.Scene();scene.background=new THREE.Color(0x9fc6e2);scene.fog=new THREE.Fog(0xb5d3e7,100,850);
@@ -134,10 +134,12 @@ function animate(){requestAnimationFrame(animate);if(!scene)return;const dt=Math
 window.addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(k==='escape'){if(running)showMenu();else setGame();}if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k))e.preventDefault();});
 window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
 document.querySelectorAll('#touch button').forEach(b=>{let k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;try{b.setPointerCapture(e.pointerId);}catch(_){}});const clear=()=>keys[k]=false;b.addEventListener('pointerup',clear);b.addEventListener('pointercancel',clear);b.addEventListener('lostpointercapture',clear);});
-$('ride').onclick=setGame;$('openGarage').onclick=()=>{$('menu').style.display='none';$('garage').style.display='flex';$('bodyColor').value=custom.body;$('accentColor').value=custom.accent;$('track').value=custom.track;$('susp').value=custom.susp;$('ski').value=custom.ski;$('modelChoice').value=modelChoice;};
-$('garageBack').onclick=()=>{$('garage').style.display='none';$('menu').style.display='flex';};$('applyGarage').onclick=applyGarage;
-$('openSettings').onclick=()=>{$('menu').style.display='none';$('settings').style.display='flex';$('weather').value=settings.weather;$('time').value=settings.time;$('volume').value=settings.volume;$('quality').value=settings.quality;};
-$('settingsBack').onclick=()=>{$('settings').style.display='none';$('menu').style.display='flex';};$('applySettings').onclick=()=>{applySettings();$('settings').style.display='none';$('menu').style.display='flex';};
+function openGarage(){ $('menu').style.display='none';$('garage').style.display='flex';$('bodyColor').value=custom.body;$('accentColor').value=custom.accent;$('track').value=custom.track;$('susp').value=custom.susp;$('ski').value=custom.ski;$('modelChoice').value=modelChoice; }
+function openSettings(){ $('menu').style.display='none';$('settings').style.display='flex';$('weather').value=settings.weather;$('time').value=settings.time;$('volume').value=settings.volume;$('quality').value=settings.quality; }
+function backToMenu(from){$(from).style.display='none';$('menu').style.display='flex';}
+$('ride').addEventListener('click',setGame);$('openGarage').addEventListener('click',openGarage);$('openSettings').addEventListener('click',openSettings);
+$('garageBack').addEventListener('click',()=>backToMenu('garage'));$('applyGarage').addEventListener('click',applyGarage);
+$('settingsBack').addEventListener('click',()=>backToMenu('settings'));$('applySettings').addEventListener('click',()=>{try{applySettings();backToMenu('settings');}catch(e){console.error('Settings could not be applied:',e);backToMenu('settings');}});
 window.addEventListener('resize',()=>{if(camera&&renderer){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}});
 loadThree(()=>{init();applySettings();},()=>{document.body.insertAdjacentHTML("beforeend","<div style=\u0027position:fixed;z-index:99;inset:0;display:grid;place-items:center;background:#111;color:white;font:16px system-ui;padding:20px;text-align:center\u0027>3D engine failed to load. Check your internet connection and reload.</div>");});
 })();
