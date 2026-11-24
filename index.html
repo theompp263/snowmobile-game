@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Snowmobile Game</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#b9d5e9;color:#fff;font-family:system-ui,Arial,sans-serif}canvas{display:block}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#b9d5e9;color:#fff;font-family:system-ui,Arial,sans-serif}canvas{display:block;touch-action:none}
 #hud{position:fixed;inset:0;z-index:5;pointer-events:none;text-shadow:0 2px 5px #10202b;display:none}
 #top{position:absolute;left:14px;top:12px;display:flex;gap:10px;align-items:flex-start}
 .panel{background:rgba(7,15,22,.65);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:9px 12px;backdrop-filter:blur(5px)}
@@ -19,7 +19,7 @@ h1{margin:0;font-size:clamp(34px,8vw,58px);letter-spacing:-2px;line-height:1}h1 
 .sub{color:#b8cbd9;margin:8px 0 20px}.btn{border:1px solid #ffffff35;background:#eaf7ff;color:#152532;padding:12px 16px;border-radius:11px;font-weight:800;font-size:15px;cursor:pointer;margin:5px 5px 5px 0}.btn.secondary{background:#253b4d;color:#fff}.btn:hover{filter:brightness(1.08)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}.row label{font-size:14px;color:#d7e5ee}.row input[type=range]{width:48%}.row select,.row input[type=color]{background:#213546;color:#fff;border:1px solid #456;border-radius:7px;padding:7px}
 #garage,#settings{display:none}.garageTitle{font-size:26px;font-weight:800}.small{font-size:12px;color:#b6c8d5}
-#touch{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}#touch button{pointer-events:auto;position:absolute;border:1px solid #ffffff55;background:#10253588;color:#fff;font-weight:800;border-radius:16px;width:66px;height:62px;font-size:18px;touch-action:none}
+#touch{display:none;position:fixed;inset:0;z-index:15;pointer-events:none}#touch button{pointer-events:auto;position:absolute;border:1px solid #ffffff55;background:#10253588;color:#fff;font-weight:800;border-radius:16px;width:66px;height:62px;font-size:18px;touch-action:none;user-select:none;-webkit-user-select:none}
 #touch .left{left:18px;bottom:95px}#touch .right{left:94px;bottom:95px}#touch .gas{right:20px;bottom:94px;width:78px;height:82px}#touch .brake{right:110px;bottom:96px}#touch .leanl{left:18px;bottom:22px}#touch .leanr{left:94px;bottom:22px}#touch .brace{right:110px;bottom:22px}
 @media(max-width:800px){#touch{display:block}#hint{top:auto;bottom:175px;font-size:11px}#status{font-size:11px}#bottom{bottom:180px}#top{top:8px}}
 </style>
@@ -44,12 +44,12 @@ h1{margin:0;font-size:clamp(34px,8vw,58px);letter-spacing:-2px;line-height:1}h1 
 <div class="row"><label>Engine volume</label><input id="volume" type="range" min="0" max="100" value="45"></div>
 <div class="row"><label>Graphics</label><select id="quality"><option>Low</option><option selected>Balanced</option><option>High</option></select></div>
 <button class="btn" id="applySettings">APPLY</button><button class="btn secondary" id="settingsBack">BACK</button></div></div>
-<div id="touch"><button class="left" data-key="a">◀</button><button class="right" data-key="d">▶</button><button class="gas" data-key="w">GAS</button><button class="brake" data-key="s">BRAKE</button><button class="leanl" data-key="arrowleft">LEAN ◀</button><button class="leanr" data-key="arrowright">LEAN ▶</button><button class="brace" data-key="q">BRACE</button></div>
+<div id="touch"><button class="left" data-key="steerleft">◀</button><button class="right" data-key="steerright">▶</button><button class="gas" data-key="w">GAS</button><button class="brake" data-key="s">BRAKE</button><button class="leanl" data-key="leanleft">LEAN ◀</button><button class="leanr" data-key="leanright">LEAN ▶</button><button class="brace" data-key="q">BRACE</button></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
 <script>
 (()=> {
 const $=id=>document.getElementById(id);
-let scene,camera,renderer,sled,bodyMat,accentMat,trackGroup,terrain,trees=[],snowParticles,clock;
+let scene,camera,renderer,sled,bodyMat,accentMat,trackGroup,terrain,trees=[],snowParticles,clock,fallbackRoot,skiPivots=[],externalModelLoaded=false;
 let running=false,paused=true,keys={},speed=0,steer=0,heading=0,lean=0,brace=0,worldTime=0,engineOsc,engineGain,audioCtx;
 let settings={weather:'Clear',time:'day',volume:45,quality:'Balanced'};
 let custom={body:'#168bd1',accent:'#f2f8ff',track:'short',susp:'Standard',ski:'Standard'};
@@ -76,20 +76,41 @@ function createTrees(){const pineMat=new THREE.MeshStandardMaterial({color:0x1e4
 }
 function createSnow(){const count=settings.quality==='Low'?800:1600,arr=new Float32Array(count*3);for(let i=0;i<count;i++){arr[i*3]=(Math.random()-.5)*180;arr[i*3+1]=Math.random()*90;arr[i*3+2]=(Math.random()-.5)*180;}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(arr,3));snowParticles=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:.18,transparent:true,opacity:.75}));scene.add(snowParticles);}
 function box(parent,w,h,d,mat,x,y,z){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-function createSled(){sled=new THREE.Group();bodyMat=new THREE.MeshStandardMaterial({color:custom.body,metalness:.18,roughness:.36});accentMat=new THREE.MeshStandardMaterial({color:custom.accent,metalness:.15,roughness:.35});
- // chassis, track, hood, seat, windshield, rider
- trackGroup=new THREE.Group();const black=new THREE.MeshStandardMaterial({color:0x101820,roughness:.9});box(trackGroup,.78,.38,2.15,black,0,.22,.15);for(let i=0;i<14;i++){let lug=box(trackGroup,.76,.06,.12,new THREE.MeshStandardMaterial({color:0x303b43}),0,.42,-.8+i*.14);}
- sled.add(trackGroup);box(sled,.48,.5,1.1,black,0,.54,.28);box(sled,.9,.3,.9,bodyMat,0,.8,.45);let hood=new THREE.Mesh(new THREE.CapsuleGeometry(.34,.95,5,8),bodyMat);hood.rotation.x=Math.PI/2;hood.position.set(0,.87,-.2);sled.add(hood);
- box(sled,.5,.28,.65,black,0,1.04,.62);let wind=new THREE.Mesh(new THREE.BoxGeometry(.7,.32,.06),new THREE.MeshStandardMaterial({color:0x8bd9ff,transparent:true,opacity:.5}));wind.position.set(0,1.32,-.34);sled.add(wind);
- // handlebars
- box(sled,.78,.06,.08,black,0,1.1,-.38);
- // rider torso, helmet and arms
+function createSled(){
+ sled=new THREE.Group();fallbackRoot=new THREE.Group();
+ bodyMat=new THREE.MeshStandardMaterial({color:custom.body,metalness:.18,roughness:.36});
+ accentMat=new THREE.MeshStandardMaterial({color:custom.accent,metalness:.15,roughness:.35});
+ const black=new THREE.MeshStandardMaterial({color:0x101820,roughness:.9}),rubber=new THREE.MeshStandardMaterial({color:0x26313a,roughness:.9}),metal=new THREE.MeshStandardMaterial({color:0x9aa7b2,metalness:.65,roughness:.3});
+ trackGroup=new THREE.Group();const belt=new THREE.Mesh(new THREE.TorusGeometry(.62,.16,10,32),black);belt.rotation.y=Math.PI/2;belt.position.set(0,.45,.1);trackGroup.add(belt);
+ for(let side of [-1,1]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,.62,14),black);wheel.rotation.z=Math.PI/2;wheel.position.set(0,.45,side===-1?-.52:.72);trackGroup.add(wheel);}
+ for(let i=0;i<24;i++){let a=i*Math.PI*2/24;let lug=box(trackGroup,.72,.055,.1,rubber,0,.45+Math.sin(a)*.62,.1+Math.cos(a)*.62);lug.rotation.x=a;}
+ fallbackRoot.add(trackGroup);
+ box(fallbackRoot,.54,.42,1.22,black,0,.52,.28);box(fallbackRoot,.86,.28,.72,bodyMat,0,.8,.35);
+ let hood=new THREE.Mesh(new THREE.CapsuleGeometry(.32,.85,5,10),bodyMat);hood.rotation.x=Math.PI/2;hood.position.set(0,.87,-.22);fallbackRoot.add(hood);
+ box(fallbackRoot,.44,.25,.6,black,0,1.03,.62);box(fallbackRoot,.72,.1,.18,black,0,1.12,-.35);
+ let windshield=new THREE.Mesh(new THREE.BoxGeometry(.65,.35,.055),new THREE.MeshStandardMaterial({color:0x8bd9ff,transparent:true,opacity:.48,roughness:.1}));windshield.position.set(0,1.35,-.4);fallbackRoot.add(windshield);
  const riderMat=new THREE.MeshStandardMaterial({color:0x263b55}),helmetMat=new THREE.MeshStandardMaterial({color:0xffd43b});
- box(sled,.42,.65,.32,riderMat,0,1.48,.3);let helmet=new THREE.Mesh(new THREE.SphereGeometry(.22,14,12),helmetMat);helmet.position.set(0,1.9,.22);sled.add(helmet);box(sled,.62,.12,.13,riderMat,0,1.55,-.22);
- // skis front
- const skiMat=new THREE.MeshStandardMaterial({color:custom.ski==='Wide powder skis'?0x99d5ff:0xf4f8ff,metalness:.25});
- for(let side of [-1,1]){let ski=new THREE.Mesh(new THREE.BoxGeometry(custom.ski==='Wide powder skis'?.2:.12,.09,1.6),skiMat);ski.position.set(side*.48,.18,-1.1);sled.add(ski);let strut=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.5,8),black);strut.position.set(side*.42,.44,-.65);sled.add(strut);}
+ box(fallbackRoot,.42,.62,.32,riderMat,0,1.48,.34);let helmet=new THREE.Mesh(new THREE.SphereGeometry(.22,16,12),helmetMat);helmet.position.set(0,1.9,.24);fallbackRoot.add(helmet);
+ for(let side of [-1,1]){let arm=box(fallbackRoot,.16,.13,.55,riderMat,side*.28,1.58,-.02);arm.rotation.z=side*.22;}
+ sled.add(fallbackRoot);
+ skiPivots=[];
+ for(let side of [-1,1]){let pivot=new THREE.Group();pivot.position.set(side*.5,.12,-1.05);sled.add(pivot);skiPivots.push(pivot);
+ let skiWidth=custom.ski==='Wide powder skis'?.22:custom.ski==='Sport skis'?.11:.15;
+ let ski=new THREE.Mesh(new THREE.BoxGeometry(skiWidth,.09,1.65),new THREE.MeshStandardMaterial({color:custom.accent,metalness:.18,roughness:.45}));ski.position.z=-.12;pivot.add(ski);
+ let tip=new THREE.Mesh(new THREE.CapsuleGeometry(skiWidth*.48,.18,4,8),new THREE.MeshStandardMaterial({color:custom.accent,metalness:.18,roughness:.45}));tip.rotation.x=Math.PI/2;tip.position.set(0,.01,-.87);pivot.add(tip);
+ let strut=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.5,8),metal);strut.position.set(0,.3,-.36);pivot.add(strut);}
  sled.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(sled);sled.position.set(0,heightAt(0,0)+.6,0);
+ // Load a CC0 snowmobile asset when available; retain the built-in sled if it fails.
+ import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js').then(({GLTFLoader})=>{
+  new GLTFLoader().load('https://grab3d.com/dl/snowmobile/snowmobile.glb',g=>{
+   const model=g.scene;let box3=new THREE.Box3().setFromObject(model),size=box3.getSize(new THREE.Vector3());
+   if(size.x>size.z)model.rotation.y=Math.PI/2;
+   box3.setFromObject(model);size=box3.getSize(new THREE.Vector3());const scale=2.25/Math.max(size.z,size.x);model.scale.setScalar(scale);
+   box3.setFromObject(model);const center=box3.getCenter(new THREE.Vector3());model.position.sub(center);model.position.y+=.48;
+   model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+   sled.add(model);fallbackRoot.visible=false;externalModelLoaded=true;
+  },undefined,e=>console.warn('Snowmobile asset failed; using built-in model.',e));
+ }).catch(e=>console.warn('Model loader unavailable; using built-in sled.',e));
 }
 function rebuildColor(){bodyMat.color.set(custom.body);accentMat.color.set(custom.accent);save();}
 function startAudio(){try{if(!audioCtx){audioCtx=new (window.AudioContext||window.webkitAudioContext)();engineOsc=audioCtx.createOscillator();engineGain=audioCtx.createGain();engineOsc.type='sawtooth';engineOsc.frequency.value=45;engineGain.gain.value=0;engineOsc.connect(engineGain);engineGain.connect(audioCtx.destination);engineOsc.start();}audioCtx.resume();}catch(e){}}
@@ -99,8 +120,8 @@ function applyGarage(){custom.body=$('bodyColor').value;custom.accent=$('accentC
 function setGame(){running=true;paused=false;$('menu').style.display='none';$('garage').style.display='none';$('settings').style.display='none';$('hud').style.display='block';startAudio();}
 function showMenu(){paused=true;$('menu').style.display='flex';$('hud').style.display='none';running=false;engineSound();}
 function animate(){requestAnimationFrame(animate);if(!scene)return;const dt=Math.min(clock.getDelta(),.04);worldTime+=dt;
- if(running){let accel=keys.w?24:keys.s?-28:0;speed+=accel*dt;speed*=Math.pow(keys.s&&speed>0?.92:.985,dt*60);speed=Math.max(-18,Math.min(90,speed));let targetSteer=(keys.a?-1:0)+(keys.d?1:0);steer+=(targetSteer-steer)*dt*4.5;heading+=steer*dt*(speed*.025);sled.rotation.y=heading;
- let leanTarget=(keys.arrowleft?-1:0)+(keys.arrowright?1:0);lean+=(leanTarget-lean)*dt*4;sled.rotation.z=-lean*.13; sled.rotation.x=(keys.q?-.08:keys.e?.08:0)+Math.sin(worldTime*speed*.05)*.015;
+ if(running){let accel=keys.w?24:keys.s?-28:0;speed+=accel*dt;speed*=Math.pow(keys.s&&speed>0?.92:.985,dt*60);speed=Math.max(-18,Math.min(90,speed));let targetSteer=(keys.a||keys.arrowleft||keys.steerleft?-1:0)+(keys.d||keys.arrowright||keys.steerright?1:0);steer+=(targetSteer-steer)*dt*6;heading+=steer*dt*(Math.max(.15,Math.abs(speed))*.035);sled.rotation.y=heading;if(skiPivots)skiPivots.forEach(p=>p.rotation.y=steer*.42);if(trackGroup)trackGroup.rotation.x=worldTime*speed*.24;
+ let leanTarget=(keys.arrowup||keys.leanleft?-1:0)+(keys.arrowdown||keys.leanright?1:0);lean+=(leanTarget-lean)*dt*4;sled.rotation.z=-steer*.11-lean*.08; sled.rotation.x=(keys.q?-.08:keys.e?.08:0)+Math.sin(worldTime*speed*.05)*.015;
  const dx=Math.sin(heading)*speed*dt,dz=-Math.cos(heading)*speed*dt;sled.position.x+=dx;sled.position.z+=dz;
  let targetY=heightAt(sled.position.x,sled.position.z)+.6; sled.position.y+=(targetY-sled.position.y)*dt*(custom.susp==='Firm'?14:custom.susp==='Soft'?5:8);
  camera.position.lerp(new THREE.Vector3(sled.position.x-Math.sin(heading)*8,sled.position.y+4.5,sled.position.z+Math.cos(heading)*10),dt*3.5);camera.lookAt(sled.position.x,sled.position.y+1.3,sled.position.z-2);
@@ -110,7 +131,7 @@ function animate(){requestAnimationFrame(animate);if(!scene)return;const dt=Math
  renderer.render(scene,camera);}
 window.addEventListener('keydown',e=>{const k=e.key.toLowerCase();keys[k]=true;if(k==='escape'){if(running)showMenu();else setGame();}if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k))e.preventDefault();});
 window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-document.querySelectorAll('#touch button').forEach(b=>{let k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;b.setPointerCapture(e.pointerId);});b.addEventListener('pointerup',e=>{keys[k]=false});b.addEventListener('pointercancel',()=>keys[k]=false);});
+document.querySelectorAll('#touch button').forEach(b=>{let k=b.dataset.key;b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;try{b.setPointerCapture(e.pointerId);}catch(_){}});const clear=()=>keys[k]=false;b.addEventListener('pointerup',clear);b.addEventListener('pointercancel',clear);b.addEventListener('lostpointercapture',clear);});
 $('ride').onclick=setGame;$('openGarage').onclick=()=>{$('menu').style.display='none';$('garage').style.display='flex';$('bodyColor').value=custom.body;$('accentColor').value=custom.accent;$('track').value=custom.track;$('susp').value=custom.susp;$('ski').value=custom.ski;};
 $('garageBack').onclick=()=>{$('garage').style.display='none';$('menu').style.display='flex';};$('applyGarage').onclick=applyGarage;
 $('openSettings').onclick=()=>{$('menu').style.display='none';$('settings').style.display='flex';$('weather').value=settings.weather;$('time').value=settings.time;$('volume').value=settings.volume;$('quality').value=settings.quality;};
