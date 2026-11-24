@@ -75,7 +75,8 @@ function createTrees(){const pineMat=new THREE.MeshStandardMaterial({color:0x1e4
  for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(60+Math.random()*70,90+Math.random()*120,6),mountainMat);m.position.set((Math.random()-.5)*900,45+Math.random()*40,-350-Math.random()*300);scene.add(m);}
 }
 function createSnow(){const count=settings.quality==='Low'?800:1600,arr=new Float32Array(count*3);for(let i=0;i<count;i++){arr[i*3]=(Math.random()-.5)*180;arr[i*3+1]=Math.random()*90;arr[i*3+2]=(Math.random()-.5)*180;}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(arr,3));snowParticles=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:.18,transparent:true,opacity:.75}));scene.add(snowParticles);}
-function loadGLTFLoader(){const urls=['https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'];return urls.reduce((p,url)=>p.catch(()=>import(url)),Promise.reject()).then(m=>m.GLTFLoader);}\nfunction box(parent,w,h,d,mat,x,y,z){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+function loadGLTFLoader(){const urls=['https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js','https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'];return urls.reduce((p,url)=>p.catch(()=>import(url)),Promise.reject()).then(m=>m.GLTFLoader);}
+function box(parent,w,h,d,mat,x,y,z){let m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 function createSled(){
  sled=new THREE.Group();fallbackRoot=new THREE.Group();
  bodyMat=new THREE.MeshStandardMaterial({color:custom.body,metalness:.18,roughness:.36});
@@ -93,7 +94,7 @@ function createSled(){
  box(fallbackRoot,.42,.62,.32,riderMat,0,1.48,.34);let helmet=new THREE.Mesh(new THREE.SphereGeometry(.22,16,12),helmetMat);helmet.position.set(0,1.9,.24);fallbackRoot.add(helmet);
  for(let side of [-1,1]){let arm=box(fallbackRoot,.16,.13,.55,riderMat,side*.28,1.58,-.02);arm.rotation.z=side*.22;}
  sled.add(fallbackRoot);
- skiPivots=[];
+ skiPivots=[];skiMaterials=[];
  for(let side of [-1,1]){let pivot=new THREE.Group();pivot.position.set(side*.5,.12,-1.05);sled.add(pivot);skiPivots.push(pivot);
  let skiWidth=custom.ski==='Wide powder skis'?.22:custom.ski==='Sport skis'?.11:.15;
  let skiMat=new THREE.MeshStandardMaterial({color:custom.accent,metalness:.18,roughness:.45});skiMaterials.push(skiMat);let ski=new THREE.Mesh(new THREE.BoxGeometry(skiWidth,.09,1.65),skiMat);ski.position.z=-.12;pivot.add(ski);
@@ -101,7 +102,7 @@ function createSled(){
  let strut=new THREE.Mesh(new THREE.CylinderGeometry(.045,.06,.5,8),metal);strut.position.set(0,.3,-.36);pivot.add(strut);}
  sled.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});scene.add(sled);sled.position.set(0,heightAt(0,0)+.6,0);
  // Load a CC0 snowmobile asset when available; retain the built-in sled if it fails.
- import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js').then(({GLTFLoader})=>{
+ loadGLTFLoader().then(GLTFLoader=>{
   new GLTFLoader().load('https://grab3d.com/dl/snowmobile/snowmobile.glb',g=>{
    const model=g.scene;let box3=new THREE.Box3().setFromObject(model),size=box3.getSize(new THREE.Vector3());
    if(size.x>size.z)model.rotation.y=Math.PI/2;
@@ -112,7 +113,8 @@ function createSled(){
   },undefined,e=>console.warn('Snowmobile asset failed; using built-in model.',e));
  }).catch(e=>console.warn('All GLTFLoader CDNs failed; using built-in sled.',e));
 }
-function rebuildColor(){bodyMat.color.set(custom.body);accentMat.color.set(custom.accent);skiMaterials.forEach(m=>m.color.set(custom.accent));if(trackGroup)trackGroup.scale.z=custom.track==='long'?1.22:custom.track==='deep'?1.38:1;save();}\nfunction applyModelChoice(){if(!fallbackRoot)return;fallbackRoot.visible=!externalModelLoaded||modelChoice!=='cc0';fallbackRoot.scale.set(modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1,1,modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1);if(externalModelLoaded)sled.children.filter(c=>c.userData.importedModel).forEach(c=>c.visible=modelChoice==='cc0');}
+function rebuildColor(){bodyMat.color.set(custom.body);accentMat.color.set(custom.accent);skiMaterials.forEach(m=>m.color.set(custom.accent));if(trackGroup)trackGroup.scale.z=custom.track==='long'?1.22:custom.track==='deep'?1.38:1;save();}
+function applyModelChoice(){if(!fallbackRoot)return;fallbackRoot.visible=!externalModelLoaded||modelChoice!=='cc0';fallbackRoot.scale.set(modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1,1,modelChoice==='powder'?1.12:modelChoice==='trail'?.92:1);if(externalModelLoaded)sled.children.filter(c=>c.userData.importedModel).forEach(c=>c.visible=modelChoice==='cc0');}
 function startAudio(){try{if(!audioCtx){audioCtx=new (window.AudioContext||window.webkitAudioContext)();engineOsc=audioCtx.createOscillator();engineGain=audioCtx.createGain();engineOsc.type='sawtooth';engineOsc.frequency.value=45;engineGain.gain.value=0;engineOsc.connect(engineGain);engineGain.connect(audioCtx.destination);engineOsc.start();}audioCtx.resume();}catch(e){}}
 function engineSound(){if(engineOsc&&engineGain){engineOsc.frequency.setTargetAtTime(45+speed*2.2+(keys.w?40:0),audioCtx.currentTime,.08);engineGain.gain.setTargetAtTime(running?settings.volume/100*.055:0,audioCtx.currentTime,.12);}}
 function applySettings(){settings.weather=$('weather').value;settings.time=$('time').value;settings.volume=+$('volume').value;settings.quality=$('quality').value;scene.fog.density=0;scene.fog.near=settings.weather==='Blizzard'?20:100;scene.fog.far=settings.weather==='Blizzard'?180:850; snowParticles.visible=settings.weather!=='Clear';scene.background.set(settings.time==='night'?0x101a32:settings.time==='sunset'?0xe4a17a:0x9fc6e2);save();}
